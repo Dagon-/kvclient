@@ -9,8 +9,6 @@ import os, json, jmespath, base64
 az_client_id = CRED
 az_secret = CRED
 az_tenant = CRED
-#subscription_id = CRED
-#keyvault_uri = CRED
 credentials = ServicePrincipalCredentials(
     client_id = az_client_id,
     secret = az_secret,
@@ -60,7 +58,7 @@ def getSecret(secret_id):
 def isBase64(s):
     #base64decode/encode wants a byte sequence not a string
     s = (s.encode('utf-8'))
-
+    
     try:
         return base64.b64encode(base64.b64decode(s)) == s
     except Exception:
@@ -86,10 +84,10 @@ for item in subscription_ids:
 # Get list of secrets from all kevaults
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
 for item in keyvault_list:
-    print('Loading secrets from ' + item + '...',  end='', flush=True)
+    print('Loading secrets from {:.<25}'.format(item),  end='', flush=True)
 
     try:
-        secrets_objects = keyvault_client.get_secrets('https://' + item + '.vault.azure.net/')
+        secrets_objects = keyvault_client.get_secrets('https://{}.vault.azure.net/'.format(item))
         for item in (secrets_objects):
             secrets.append(item.as_dict())
         print(bcolors.GREEN + 'OK' + bcolors.RESET)
