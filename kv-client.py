@@ -1,21 +1,25 @@
+#!/usr/bin/python3
 from azure.mgmt.resource import SubscriptionClient
 from azure.keyvault import KeyVaultClient, KeyVaultAuthentication
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.keyvault.models.key_vault_error_py3 import KeyVaultErrorException
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
 from urllib.parse import urlparse
 import os, json, jmespath, base64
 
-az_client_id = CRED
-az_secret = CRED
-az_tenant = CRED
+
+az_client_id = ''
+az_secret = ''
+az_tenant = ''
 credentials = ServicePrincipalCredentials(
     client_id = az_client_id,
     secret = az_secret,
     tenant = az_tenant
 )
 
-secrets = []
+#secrets = []
 subscription_ids = []
 keyvault_list = []
 
@@ -42,6 +46,31 @@ def auth_callback(server, resource, scope):
     )
     token = credentials.token
     return token['token_type'], token['access_token']
+
+# Get a list of secrets from a keyvault
+def list_secrets(keyvault_list):
+    secrets = []
+    
+    try:
+        secrets_objects = keyvault_client.get_secrets(
+            'https://{}.vault.azure.net/'.format(keyvault_list)
+            )
+
+        for item in (secrets_objects):
+            secrets.append(item.as_dict())
+
+        print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
+
+        print(bcolors.GREEN + 'OK' + bcolors.RESET)
+
+    except KeyVaultErrorException as err:
+        if err.message == '(Forbidden) Access denied':
+            print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
+            print(bcolors.YELLOW + err.message + bcolors.RESET)
+        else:
+            print(bcolors.RED + err.message + bcolors.RESET)
+
+    return secrets
 
 # Pass the complete secret id
 def getSecret(secret_id):
@@ -81,23 +110,14 @@ for item in subscription_ids:
         item = item.as_dict()
         keyvault_list.append(item['name'])        
 
-# Get list of secrets from all kevaults
+# Get list of secrets from all kevaults in parrelel
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
-for item in keyvault_list:
-    print('Loading secrets from {:.<25}'.format(item),  end='', flush=True)
-
-    try:
-        secrets_objects = keyvault_client.get_secrets('https://{}.vault.azure.net/'.format(item))
-        for item in (secrets_objects):
-            secrets.append(item.as_dict())
-        print(bcolors.GREEN + 'OK' + bcolors.RESET)
-
-    except KeyVaultErrorException as err:
-        if err.message == '(Forbidden) Access denied':
-            print(bcolors.YELLOW + err.message + bcolors.RESET)
-        else:
-            print(bcolors.RED + err.message + bcolors.RESET)
-
+pool = ThreadPool()
+s =  pool.map(list_secrets, keyvault_list)
+pool.close()
+pool.join()
+# flatten the list of lists returned by pool.map
+secrets = [item for sublist in s for item in sublist]
 print('Loaded', len(secrets), 'secrets')
 
 while True:
