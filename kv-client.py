@@ -9,17 +9,14 @@ from multiprocessing.dummy import Pool as ThreadPool
 from urllib.parse import urlparse
 import os, json, jmespath, base64
 
-
-az_client_id = ''
-az_secret = ''
-az_tenant = ''
+az_client_id = CRED
+az_secret = CRED
+az_tenant = CRED
 credentials = ServicePrincipalCredentials(
     client_id = az_client_id,
     secret = az_secret,
     tenant = az_tenant
 )
-
-#secrets = []
 subscription_ids = []
 keyvault_list = []
 
@@ -60,7 +57,6 @@ def list_secrets(keyvault_list):
             secrets.append(item.as_dict())
 
         print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
-
         print(bcolors.GREEN + 'OK' + bcolors.RESET)
 
     except KeyVaultErrorException as err:
@@ -73,7 +69,7 @@ def list_secrets(keyvault_list):
     return secrets
 
 # Pass the complete secret id
-def getSecret(secret_id):
+def get_secret(secret_id):
     url = urlparse(secret_id)
 
     secret_value = keyvault_client.get_secret(
@@ -84,7 +80,7 @@ def getSecret(secret_id):
     return secret_value.value
 
 # Check if a secret is bas64 encoded
-def isBase64(s):
+def is_base64(s):
     #base64decode/encode wants a byte sequence not a string
     s = (s.encode('utf-8'))
     
@@ -122,23 +118,26 @@ print('Loaded', len(secrets), 'secrets')
 
 while True:
     print('\nEnter secret to search for: ', end='')
-    user_input = input()
+    user_input = input().split()
     print('\n')
 
-    # Pull out all the secret id's that match the search value
-    query = "[*].id | [?contains(@,'" + user_input + "') == `true`]"
-    search_result = jmespath.search(query, secrets)
+    # Filter the list of secrets to those that match the search values
+    for item in user_input:
+        query = "[?contains(id,'" + item + "') == `true`]"
+        secrets = jmespath.search(query, secrets)
+    # Pull out the id's
+    secrets_ids = jmespath.search('[*].id', secrets)
 
-    for index, item in enumerate(search_result):
+    for index, item in enumerate(secrets_ids):
         print('{}. {}'.format(index + 1, os.path.basename(item)))
     print('\n')
 
     print('Choose secret: ', end='')
     user_input = int(input())
 
-    secret = getSecret(search_result[user_input - 1])
+    secret = get_secret(secrets_ids[user_input - 1])
     print(bcolors.GREEN + secret + bcolors.RESET)
 
-    if isBase64(secret):
+    if is_base64(secret):
         print("\nThis secret is base64 encoded. Here's the decoded version:")
         print(bcolors.GREEN + base64.b64decode(secret).decode() + bcolors.RESET + '\n')
