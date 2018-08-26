@@ -113,10 +113,12 @@ s =  pool.map(list_secrets, keyvault_list)
 pool.close()
 pool.join()
 # flatten the list of lists returned by pool.map
-secrets = [item for sublist in s for item in sublist]
-print('Loaded', len(secrets), 'secrets')
+l = [item for sublist in s for item in sublist]
+print('Loaded', len(l), 'secrets')
 
 while True:
+    # reset secrets variable at the start of the loop
+    secrets = l
     print('\nEnter secret to search for: ', end='')
     user_input = input().split()
     print('\n')
@@ -130,10 +132,12 @@ while True:
 
     for index, item in enumerate(secrets_ids):
         print('{}. {}'.format(index + 1, os.path.basename(item)))
-    print('\n')
+    print('\n0. Return to search\n\n')
 
     print('Choose secret: ', end='')
     user_input = int(input())
+    if user_input == 0:
+        continue
 
     secret = get_secret(secrets_ids[user_input - 1])
     print(bcolors.GREEN + secret + bcolors.RESET)
