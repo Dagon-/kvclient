@@ -9,9 +9,9 @@ from multiprocessing.dummy import Pool as ThreadPool
 from urllib.parse import urlparse
 import os, json, jmespath, base64
 
-az_client_id = CRED
-az_secret = CRED
-az_tenant = CRED
+az_client_id = ''
+az_secret = ''
+az_tenant = ''
 credentials = ServicePrincipalCredentials(
     client_id = az_client_id,
     secret = az_secret,
