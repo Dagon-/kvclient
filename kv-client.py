@@ -90,21 +90,23 @@ def is_base64(s):
         return False
 
 # Get list of subscription id's
-print('\nChecking subscriptions...')
+print('\nChecking subscriptions.........', end='')
 subscription_client = SubscriptionClient(credentials)
 subscriptions = subscription_client.subscriptions.list()
 for item in subscriptions:
     item = item.as_dict()
     subscription_ids.append(item['subscription_id'])
+print(bcolors.GREEN + 'OK' + bcolors.RESET)
 
 # Get keyvaults in all subscriptions
-print('Retrieving list of keyvaults...\n')
+print('Retrieving list of keyvaults...', end='')
 for item in subscription_ids:
     kv_mgmt_client = KeyVaultManagementClient(credentials, item)
     kv = kv_mgmt_client.vaults.list()
     for item in kv:
         item = item.as_dict()
-        keyvault_list.append(item['name'])        
+        keyvault_list.append(item['name'])
+print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
 
 # Get list of secrets from all kevaults in parrelel
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
@@ -134,14 +136,26 @@ while True:
         print('{}. {}'.format(index + 1, os.path.basename(item)))
     print('\n0. Return to search\n\n')
 
-    print('Choose secret: ', end='')
-    user_input = int(input())
-    if user_input == 0:
-        continue
+    # Return the user to secret selection if they don't enter '0'
+    # TODO: This is a bit hacky, find a cleaner way to do it
+    # It will only work as long as the outer loop as no more code
+    # to run after this
+    while True:
 
-    secret = get_secret(secrets_ids[user_input - 1])
-    print(bcolors.GREEN + secret + bcolors.RESET)
+        try:
+            user_input = int(input('Choose secret: '))
+        except ValueError:
+            print(bcolors.YELLOW + 'Input needs to be a number\n' + bcolors.RESET)
+            continue
 
-    if is_base64(secret):
-        print("\nThis secret is base64 encoded. Here's the decoded version:")
-        print(bcolors.GREEN + base64.b64decode(secret).decode() + bcolors.RESET + '\n')
+        if user_input > len(secrets_ids) or user_input  < 0:
+            print(bcolors.YELLOW + 'Select from the range above\n' + bcolors.RESET)
+        elif user_input == 0:
+            break
+        else:
+            secret = get_secret(secrets_ids[user_input - 1])
+            print(bcolors.GREEN + secret + bcolors.RESET + '\n')
+
+            if is_base64(secret):
+                print("This secret is base64 encoded. Here's the decoded version:")
+                print(bcolors.GREEN + base64.b64decode(secret).decode() + bcolors.RESET + '\n')
