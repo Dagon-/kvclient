@@ -153,9 +153,11 @@ while True:
         elif user_input == 0:
             break
         else:
+            print('\n{}:'.format(os.path.basename(secrets_ids[user_input - 1])))
             secret = get_secret(secrets_ids[user_input - 1])
             print(bcolors.GREEN + secret + bcolors.RESET + '\n')
 
             if is_base64(secret):
                 print("This secret is base64 encoded. Here's the decoded version:")
                 print(bcolors.GREEN + base64.b64decode(secret).decode() + bcolors.RESET + '\n')
+            print('----------------------------------\n\n')
