@@ -13,25 +13,36 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--clientid", help="Service principle client ID")
 parser.add_argument("--secret", help="Service principle client secret")
 parser.add_argument("--tenant", help="AD tenent ID")
+parser.add_argument("--credsfile", help="json file with keyvault credentials")
 args = parser.parse_args()
 
+# Get credentails 
+# TODO This works but it not very readble
+# Rework with a cleaner flow.
 if not all((args.clientid, args.secret, args.tenant)):
-    if 'AZURE_AUTH_LOCATION' in os.environ:
+    if args.credsfile and os.path.isfile(args.credsfile):
+        creds_file = args.credsfile
+    elif 'AZURE_AUTH_LOCATION' in os.environ:
         creds_file = os.environ['AZURE_AUTH_LOCATION']
     elif 'AZURE_AUTH_LOCATION' not in os.environ:
         homedir = os.path.expanduser("~")
         if os.path.isfile(homedir + '/.azure/keyvault.json'):
             creds_file = homedir + '/.azure/keyvault.json'
         else:
-            print('\nNo credentials supplied. See readme.md for options.\n')
+            print('\nNo credentials found. See readme.md for options.\n')
             sys.exit()
 
     with open(creds_file) as json_data:
         creds = json.load(json_data)
+
     az_client_id = creds['clientId']
     az_secret = creds['clientSecret']
     az_tenant = creds['tenantId']
 else:
+    if args.credsfile is not None:
+        print('\n--credsfile cannot be used at the same time as other credential agruments.\n')
+        sys.exit()
+
     az_client_id = args.clientid
     az_secret = args.secret
     az_tenant = args.tenant
