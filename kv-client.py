@@ -215,10 +215,11 @@ while True:
             if user_input == 'not_int':
                 continue
 
-            print(bcolors.YELLOW + 'WARNING:' + bcolors.RESET + 'The secret {} will be deleted'.format(
-                os.path.basename(secrets_ids[user_input -1])))
+            print('\n{0}WARNING:{1} The secret {0}{2}{1} will be deleted'.format(
+                bcolors.YELLOW, bcolors.RESET, os.path.basename(secrets_ids[user_input - 1])))
 
             delete_input = input('\nAre you sure you want to continue N/y: ')
+            print('\n')
             if delete_input == 'y':
                 # delete from keyvault
                 # TODO do the delete in a try/except                
