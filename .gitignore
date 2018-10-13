@@ -2,6 +2,5 @@
 **/.vscode
 *.code-workspace
 /build
-/dist
 /__pycache__
 *.spec
