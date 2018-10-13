@@ -114,7 +114,16 @@ def get_secret(secret_id):
     )
     return secret_value.value
 
-# Check if a secret is bas64 encoded
+def delete_secret(secret_id):
+    url = urlparse(secret_id)
+
+    secret_value = keyvault_client.delete_secret(
+        'https://' + url.netloc,
+        os.path.basename(secret_id),
+        ''
+    )
+
+# Check if a secret is base64 encoded
 def is_base64(s):
     #base64decode/encode wants a byte sequence not a string
     s = (s.encode('utf-8'))
@@ -123,6 +132,25 @@ def is_base64(s):
         return base64.b64encode(base64.b64decode(s)) == s
     except Exception:
         return False
+
+def choose_secret(secrets_ids, message):
+    try:
+        user_input = int(input(message))
+    except ValueError:
+        print(bcolors.YELLOW + 'Input needs to be a number\n' + bcolors.RESET)
+        return 'not_int'
+    
+    if user_input > len(secrets_ids) or user_input < -1:
+        print(bcolors.YELLOW + 'Select from the range above\n' + bcolors.RESET)
+        return 'not_int'
+    
+    return user_input
+
+def print_selection_list(secrets_ids):
+    for index, item in enumerate(secrets_ids):
+        print('{}. {}'.format(index + 1, os.path.basename(item)))
+    print('\n 0. Return to search')
+    print('-1. Delete Secrets\n\n')
 
 # Get list of subscription id's
 print('\nChecking subscriptions.........', end='', flush=True)
@@ -153,6 +181,7 @@ pool.join()
 l = [item for sublist in s for item in sublist]
 print('Loaded', len(l), 'secrets')
 
+# Main loop
 while True:
     # reset secrets variable at the start of the loop
     secrets = l
@@ -167,26 +196,45 @@ while True:
     # Pull out the id's
     secrets_ids = jmespath.search('[*].id', secrets)
 
-    for index, item in enumerate(secrets_ids):
-        print('{}. {}'.format(index + 1, os.path.basename(item)))
-    print('\n0. Return to search\n\n')
+    print_selection_list(secrets_ids)
 
-    # Return the user to secret selection if they don't enter '0'
-    # TODO: This is a bit hacky, find a cleaner way to do it
-    # It will only work as long as the outer loop as no more code
-    # to run after this
+    # retrieve/delete secret loop
     while True:
 
-        try:
-            user_input = int(input('Choose secret: '))
-        except ValueError:
-            print(bcolors.YELLOW + 'Input needs to be a number\n' + bcolors.RESET)
-            continue
+        user_input = choose_secret(secrets_ids,'choose secret: ')
 
-        if user_input > len(secrets_ids) or user_input  < 0:
-            print(bcolors.YELLOW + 'Select from the range above\n' + bcolors.RESET)
+        if user_input == 'not_int':
+            continue
+        # return to search
         elif user_input == 0:
             break
+        # delete a secret
+        elif user_input == -1:
+
+            user_input = choose_secret(secrets_ids, 'Select secret to delete: ')
+            if user_input == 'not_int':
+                continue
+
+            print(bcolors.YELLOW + 'WARNING:' + bcolors.RESET + 'The secret {} will be deleted'.format(
+                os.path.basename(secrets_ids[user_input -1])))
+
+            delete_input = input('\nAre you sure you want to continue N/y: ')
+            if delete_input == 'y':
+                # delete from keyvault
+                # TODO do the delete in a try/except                
+                delete_secret(secrets_ids[user_input -1])
+                del_secret_name = os.path.basename(secrets_ids[user_input - 1])
+                # delete from the main list and selection list
+                for i, dic in enumerate(l):
+                    if dic['id'] == secrets_ids[user_input - 1]:
+                        del(l[i])
+                del(secrets_ids[user_input - 1])
+                # print the updated selection list
+                print_selection_list(secrets_ids)
+                print(bcolors.GREEN + 'Successfully deleted ' +
+                    del_secret_name + bcolors.RESET + '\n')
+            else:
+                continue   
         else:
             print('\n{}:'.format(os.path.basename(secrets_ids[user_input - 1])))
             secret = get_secret(secrets_ids[user_input - 1])
