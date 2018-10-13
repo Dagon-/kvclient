@@ -178,23 +178,23 @@ s =  pool.map(list_secrets, keyvault_list)
 pool.close()
 pool.join()
 # flatten the list of lists returned by pool.map
-l = [item for sublist in s for item in sublist]
-print('Loaded', len(l), 'secrets')
+master_list = [item for sublist in s for item in sublist]
+print('Loaded', len(master_list), 'secrets')
 
 # Main loop
 while True:
     # reset secrets variable at the start of the loop
-    secrets = l
+    filtered_master_list = master_list
     print('\nEnter secret to search for: ', end='')
     user_input = input().split()
     print('\n')
 
-    # Filter the list of secrets to those that match the search values
+    # Filter the list of filtered_master_list to those that match the search values
     for item in user_input:
         query = "[?contains(id,'" + item + "') == `true`]"
-        secrets = jmespath.search(query, secrets)
-    # Pull out the id's
-    secrets_ids = jmespath.search('[*].id', secrets)
+        filtered_master_list = jmespath.search(query, filtered_master_list)
+    # Pull out the id's out of the filtered list
+    secrets_ids = jmespath.search('[*].id', filtered_master_list)
 
     print_selection_list(secrets_ids)
 
@@ -226,9 +226,9 @@ while True:
                 delete_secret(secrets_ids[user_input -1])
                 del_secret_name = os.path.basename(secrets_ids[user_input - 1])
                 # delete from the main list and selection list
-                for i, dic in enumerate(l):
+                for i, dic in enumerate(master_list):
                     if dic['id'] == secrets_ids[user_input - 1]:
-                        del(l[i])
+                        del(master_list[i])
                 del(secrets_ids[user_input - 1])
                 # print the updated selection list
                 print_selection_list(secrets_ids)
