@@ -38,6 +38,10 @@ class kvDisplay():
         ('highlight', 'white', 'dark gray')
     ]
 
+    choices = [ u"test2", u"test4",  u"test5",
+                u"test7", u"test8",  u"test9"
+              ]
+
     def __init__(self, output_mode='result'):
         self.view = None
         self.output_mode = output_mode
