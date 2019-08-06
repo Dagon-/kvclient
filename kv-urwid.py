@@ -38,11 +38,8 @@ class kvDisplay():
         ('highlight', 'white', 'dark gray')
     ]
 
-    choices = [ u"test2", u"test4",  u"test5",
-                u"test7", u"test8",  u"test9"
-              ]
-
     def __init__(self, output_mode='result'):
+        self.choices = master_list
         self.view = None
         self.output_mode = output_mode
         self.last_result = None
@@ -59,10 +56,13 @@ class kvDisplay():
         self.secret_details.set_text("Index of selected item: " + str(index))
 
     def listbox_secrets(self, choices):
-        body = [urwid.Divider()]
+        #body = [urwid.Divider()]
+        body = []
+
         for c in choices:
-            button = MyButton(c)
-            urwid.connect_signal(button, 'click', self.handle_enter, user_args = [c])
+            secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
+            button = MyButton(secret_name)
+            urwid.connect_signal(button, 'click', self.handle_enter, user_args = [secret_name])
             body.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
 
         walker = urwid.SimpleListWalker(body)
@@ -71,7 +71,9 @@ class kvDisplay():
         # pass the whole listbox to the handler
         urwid.connect_signal(walker, "modified", self.handle_scroll, user_args = [listBox] )
 
-        return listBox
+
+        return listBox, walker
+
 
 
     def _create_view(self):
@@ -90,10 +92,11 @@ class kvDisplay():
             urwid.AttrMap(self.input_expr, 'input expr'), div],
             focus_item=2)
 
+        urwid.connect_signal(self.input_expr, 'postchange', self._on_search)
 
         ### content
 
-        self.left_content = self.listbox_secrets(self.choices)
+        self.left_content, self.list_walker = self.listbox_secrets(self.choices)
         self.left_content = urwid.LineBox(self.left_content, title='Secret list')
 
         self.secret_details = urwid.Text("start_text")
@@ -105,12 +108,33 @@ class kvDisplay():
         self.content = urwid.Columns([('weight',1.5, self.left_content), self.right_content])
         
         ### footer
-        self.footer = urwid.Text("Status: ")
+        self.footer = urwid.Text("Status: " + str(len(self.list_walker.contents)))
 
 
         ### frame config
         self.view = urwid.Frame(body=self.content, header=self.header,
-                                footer=self.footer, focus_part='content')
+                                footer=self.footer, focus_part='header')
+
+
+    def _on_search(self, widget, text):
+        # delete everything in the list bar the divider at index 0
+        del self.list_walker.contents[1:len(self.list_walker.contents)]
+
+        if not self.input_expr.get_edit_text(): # if the search box is blank
+            for c in master_list:
+                secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
+                button = MyButton(secret_name)
+                urwid.connect_signal(button, 'click', self.handle_enter, user_args = [secret_name])
+                self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
+            self.footer.set_text("Status: " + str(len(self.list_walker.contents))) 
+        else:
+            for c in master_list:
+                secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
+                if self.input_expr.get_edit_text() in secret_name:
+                    button = MyButton(secret_name)
+                    urwid.connect_signal(button, 'click', self.handle_enter, user_args = [secret_name])
+                    self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
+            self.footer.set_text("Status: " + str(len(self.list_walker.contents)))
 
 
 
@@ -124,28 +148,23 @@ class kvDisplay():
 
 
     def unhandled_input(self, key):
-        if key == 'f5':
+        if key == 'esc':
             raise urwid.ExitMainLoop()
-        elif key == 'ctrl ]':
-            # Keystroke to quickly empty out the
-            # currently entered expression.  Avoids
-            # having to hold backspace to delete
-            # the current expression current expression.
-            self.input_expr.edit_text = ''
-            self.secret_details.set_text('')
+        elif key == 'tab':
+            current_pos = self.view.focus_position
+            if current_pos == 'header':
+                self.view.focus_position = 'body'
+            else:
+                self.view.focus_position = 'header'
 
             
 
 
-def main():
+def main(master_list):
 
     screen = urwid.raw_display.Screen()
-    display = kvDisplay()
+    display = kvDisplay(master_list)
     display.main(screen=screen)
-
-
-
-
 
 
 
@@ -276,4 +295,4 @@ print('Loaded', len(master_list), 'secrets')
 
 
 if __name__ == '__main__':
-   sys.exit(main())
+   sys.exit(main(master_list))
