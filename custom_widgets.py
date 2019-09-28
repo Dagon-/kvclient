@@ -21,6 +21,8 @@ class MyButton(urwid.Button):
             dividechars=1)
         super(urwid.Button, self).__init__(cols)
 
+        
+
         if on_press:
             urwid.connect_signal(self, 'click', on_press, user_data)
 

@@ -59,6 +59,7 @@ class kvDisplay():
         #body = [urwid.Divider()]
         body = []
 
+        # intial list of objects added to listbox
         for c in choices:
             secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
             button = MyButton(secret_name)
@@ -115,7 +116,7 @@ class kvDisplay():
         self.view = urwid.Frame(body=self.content, header=self.header,
                                 footer=self.footer, focus_part='header')
 
-
+    # Create new objects and add them to listbox on keystrokes
     def _on_search(self, widget, text):
         # delete everything in the list bar the divider at index 0
         del self.list_walker.contents[1:len(self.list_walker.contents)]
@@ -255,7 +256,10 @@ def list_secrets(keyvault_list):
             print(bcolors.YELLOW + err.message + bcolors.RESET)
         elif 'is not authorized and caller is not a trusted service' in err.message:
             print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
-            print(bcolors.YELLOW + err.message + bcolors.RESET)
+            print(bcolors.YELLOW + '(Forbidden) Client address is not authorized.' + bcolors.RESET)
+        elif 'Caller was not found on any access policy' in err.message:
+            print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
+            print(bcolors.YELLOW + '(Forbidden) Access denied. User not found on access list.' + bcolors.RESET)
         else:
             print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
             print(bcolors.RED + err.message + bcolors.RESET)
