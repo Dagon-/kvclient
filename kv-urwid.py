@@ -8,14 +8,13 @@ from multiprocessing.dummy import Pool as ThreadPool
 from urllib.parse import urlparse
 import os
 import sys
+import base64
 import json
 import argparse
 import urwid
 import jmespath
 import collections
-
 from custom_widgets import MyButton
-#from azurecalls import get_secrets 
 
 class bcolors():
     HEADER = '\033[95m'
@@ -47,13 +46,48 @@ class kvDisplay():
     def _get_font_instance(self):
         return urwid.get_all_fonts()[-2][1]()
 
-    def handle_enter(self, c, other):
-        self.secret_details.set_text(c + ' select worked!')
+    # Pass the complete secret id
+    def get_secret(self, secret_id):
+        url = urlparse(secret_id)
+
+        secret_value = keyvault_client.get_secret(
+            'https://' + url.netloc,
+            os.path.basename(secret_id),
+            ''
+        )
+        return secret_value.value
+
+    def is_base64(self, s):
+        #base64decode/encode wants a byte sequence not a string
+        s = (s.encode('utf-8'))
+        
+        try:
+            return base64.b64encode(base64.b64decode(s)) == s
+        except Exception:
+            return False
+
+    # Display the secret stored in the button
+    def display_secret(self, button):
+        if button.secret_value == '':
+            self.secret_details.set_text('')
+        elif self.is_base64(button.secret_value): 
+            self.secret_details.set_text(
+                '{}\n\nThis secret is base64 encoded. Here\'s the decoded version: \n\n{}'.format(
+                button.secret_value, base64.b64decode(button.secret_value).decode())
+            )               
+        else:
+            self.secret_details.set_text(button.secret_value) 
+
+    def handle_enter(self, button, other):
+        #self.secret_details.set_text('Retrieving secret...')
+        button.secret_value = self.get_secret(button.secret_id) # fetch the secret from the keyvault
+        self.display_secret(button)
 
     def handle_scroll(self, listBox):
-        index = listBox.focus_position
-        #widget = listBox.body[index]
-        self.secret_details.set_text("Index of selected item: " + str(index))
+        # listBox.focus returns AttrMap object wrapping the button.
+        # use base_widget to access the button object
+        current_button = listBox.focus.base_widget
+        self.display_secret(current_button)
 
     def listbox_secrets(self, choices):
         #body = [urwid.Divider()]
@@ -61,9 +95,8 @@ class kvDisplay():
 
         # intial list of objects added to listbox
         for c in choices:
-            secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
-            button = MyButton(secret_name)
-            urwid.connect_signal(button, 'click', self.handle_enter, user_args = [secret_name])
+            button = MyButton(c)
+            urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
             body.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
 
         walker = urwid.SimpleListWalker(body)
@@ -72,9 +105,7 @@ class kvDisplay():
         # pass the whole listbox to the handler
         urwid.connect_signal(walker, "modified", self.handle_scroll, user_args = [listBox] )
 
-
         return listBox, walker
-
 
 
     def _create_view(self):
@@ -111,7 +142,6 @@ class kvDisplay():
         ### footer
         self.footer = urwid.Text("Status: " + str(len(self.list_walker.contents)))
 
-
         ### frame config
         self.view = urwid.Frame(body=self.content, header=self.header,
                                 footer=self.footer, focus_part='header')
@@ -121,19 +151,20 @@ class kvDisplay():
         # delete everything in the list bar the divider at index 0
         del self.list_walker.contents[1:len(self.list_walker.contents)]
 
-        if not self.input_expr.get_edit_text(): # if the search box is blank
+        # If the search box is blank, display all secrets
+        # else display secret that match the contect of the search box
+        if not self.input_expr.get_edit_text():
             for c in master_list:
-                secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
-                button = MyButton(secret_name)
-                urwid.connect_signal(button, 'click', self.handle_enter, user_args = [secret_name])
+                button = MyButton(c)
+                urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
                 self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
             self.footer.set_text("Status: " + str(len(self.list_walker.contents))) 
         else:
             for c in master_list:
                 secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
                 if self.input_expr.get_edit_text() in secret_name:
-                    button = MyButton(secret_name)
-                    urwid.connect_signal(button, 'click', self.handle_enter, user_args = [secret_name])
+                    button = MyButton(c)
+                    urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
                     self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
             self.footer.set_text("Status: " + str(len(self.list_walker.contents)))
 
@@ -142,15 +173,15 @@ class kvDisplay():
     def main(self, screen=None):
         self._create_view()
         self.loop = urwid.MainLoop(self.view, self.PALETTE,
-                                   unhandled_input=self.unhandled_input,
-                                   screen=screen)
+                                    unhandled_input=self.unhandled_input,
+                                    screen=screen)
         self.loop.screen.set_terminal_properties(colors=256)
         self.loop.run()
 
 
     def unhandled_input(self, key):
         if key == 'esc':
-            raise urwid.ExitMainLoop()
+            raise urwid.ExitMainLoop()       
         elif key == 'tab':
             current_pos = self.view.focus_position
             if current_pos == 'header':
@@ -256,7 +287,7 @@ def list_secrets(keyvault_list):
             print(bcolors.YELLOW + err.message + bcolors.RESET)
         elif 'is not authorized and caller is not a trusted service' in err.message:
             print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
-            print(bcolors.YELLOW + '(Forbidden) Client address is not authorized.' + bcolors.RESET)
+            print(bcolors.YELLOW + '(Forbidden) Client IP address is not authorized.' + bcolors.RESET)
         elif 'Caller was not found on any access policy' in err.message:
             print('Loading secrets from {:.<25}'.format(keyvault_list),  end='', flush=True)
             print(bcolors.YELLOW + '(Forbidden) Access denied. User not found on access list.' + bcolors.RESET)
@@ -299,4 +330,4 @@ print('Loaded', len(master_list), 'secrets')
 
 
 if __name__ == '__main__':
-   sys.exit(main(master_list))
+    sys.exit(main(master_list))

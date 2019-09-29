@@ -12,8 +12,13 @@ class MyButton(urwid.Button):
     button_left = ""
     button_right = ""
 
-    def __init__(self, label, on_press=None, user_data=None):
+    def __init__(self, c, on_press=None, user_data=None):
         self._label = ButtonLabel("")
+
+        self.secret_id = c['id']
+        self.secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
+        self.secret_value = ""
+
         cols = urwid.Columns([
             ('fixed', len(self.button_left), urwid.Text(self.button_left)),
             self._label,
@@ -22,11 +27,10 @@ class MyButton(urwid.Button):
         super(urwid.Button, self).__init__(cols)
 
         
-
         if on_press:
             urwid.connect_signal(self, 'click', on_press, user_data)
 
-        self.set_label(label)
+        self.set_label(self.secret_name)
 
 class ButtonLabel(urwid.SelectableIcon):
     '''
