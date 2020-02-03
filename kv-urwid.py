@@ -301,27 +301,25 @@ def list_secrets(keyvault_list):
 
     return secrets
 
-# # Get list of subscription id's
-# print('\nChecking subscriptions.........', end='', flush=True)
-# subscription_client = SubscriptionClient(credentials)
-# subscriptions = subscription_client.subscriptions.list()
-# for item in subscriptions:
-#     item = item.as_dict()
-#     subscription_ids.append(item['subscription_id'])
-# print(bcolors.GREEN + 'OK' + bcolors.RESET)
+# Get list of subscription id's
+print('\nChecking subscriptions.........', end='', flush=True)
+subscription_client = SubscriptionClient(credentials)
+subscriptions = subscription_client.subscriptions.list()
+for item in subscriptions:
+    item = item.as_dict()
+    subscription_ids.append(item['subscription_id'])
+print(bcolors.GREEN + 'OK' + bcolors.RESET)
 
 
-# # Get keyvaults in all subscriptions
-# print('Retrieving list of keyvaults...', end='', flush=True)
-# for item in subscription_ids:
-#     kv_mgmt_client = KeyVaultManagementClient(credentials, item)
-#     kv = kv_mgmt_client.vaults.list()
-#     for item in kv:
-#         item = item.as_dict()
-#         keyvault_list.append(item['name'])
-# print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
-
-keyvault_list = ['du-env-kv']
+# Get keyvaults in all subscriptions
+print('Retrieving list of keyvaults...', end='', flush=True)
+for item in subscription_ids:
+    kv_mgmt_client = KeyVaultManagementClient(credentials, item)
+    kv = kv_mgmt_client.vaults.list()
+    for item in kv:
+        item = item.as_dict()
+        keyvault_list.append(item['name'])
+print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
 
 # Get list of secrets from all kevaults in parallel
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
