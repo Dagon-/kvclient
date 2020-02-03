@@ -32,6 +32,7 @@ class MyButton(urwid.Button):
 
         self.set_label(self.secret_name)
 
+
 class ButtonLabel(urwid.SelectableIcon):
     '''
     use Drunken Master's trick to move the cursor out of view
@@ -42,3 +43,40 @@ class ButtonLabel(urwid.SelectableIcon):
         '''
         self.__super.set_text(label)
         self._cursor_position = len(label) + 1
+
+
+class ListEntry(urwid.Text):
+    _selectable = True
+
+    signals = ["click"]
+
+    def __init__(self, c, layout=None):
+
+
+
+        self.secret_id = c['id']
+        self.secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
+        self.secret_value = ""
+
+        markup = self.secret_name
+        self.__super.__init__(markup)
+        self._cache_maxcol = None
+
+    def keypress(self, size, key):
+        """
+        Send 'click' signal on 'activate' command.
+        """
+        if self._command_map[key] != urwid.ACTIVATE:
+            return key
+
+        self._emit('click')
+
+    def mouse_event(self, size, event, button, x, y, focus):
+        """
+        Send 'click' signal on button 1 press.
+        """
+        if button != 1 or not urwid.util.is_mouse_press(event):
+            return False
+
+        self._emit('click')
+        return True

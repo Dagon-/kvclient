@@ -14,7 +14,7 @@ import argparse
 import urwid
 import jmespath
 import collections
-from custom_widgets import MyButton
+from custom_widgets import ListEntry
 
 class bcolors():
     HEADER = '\033[95m'
@@ -33,8 +33,9 @@ class kvDisplay():
 
     PALETTE = [
         ('input expr', 'black,bold', 'light gray'),
-        ('bigtext', 'white', 'black'),
-        ('highlight', 'white', 'dark gray')
+        ('bigtext', 'light blue', 'black'),
+        ('highlight', 'white', 'dark gray'),
+        ('secret_pulled', 'light green', 'dark gray')
     ]
 
     def __init__(self, output_mode='result'):
@@ -47,15 +48,19 @@ class kvDisplay():
         return urwid.get_all_fonts()[-2][1]()
 
     # Pass the complete secret id
-    def get_secret(self, secret_id):
+    def get_secret(self, secret_id, button):
         url = urlparse(secret_id)
-
+        basename = os.path.basename(secret_id)
         secret_value = keyvault_client.get_secret(
-            'https://' + url.netloc,
-            os.path.basename(secret_id),
-            ''
+            'https://' + url.netloc, basename, ''
         )
+
+        button.set_text(('secret_pulled', basename))
+
+        #urwid.AttrMap(button, None, focus_map = 'highlight')
+
         return secret_value.value
+
 
     def is_base64(self, s):
         #base64decode/encode wants a byte sequence not a string
@@ -76,11 +81,11 @@ class kvDisplay():
                 button.secret_value, base64.b64decode(button.secret_value).decode())
             )               
         else:
-            self.secret_details.set_text(button.secret_value) 
+            self.secret_details.set_text(button.secret_value)
 
     def handle_enter(self, button, other):
         #self.secret_details.set_text('Retrieving secret...')
-        button.secret_value = self.get_secret(button.secret_id) # fetch the secret from the keyvault
+        button.secret_value = self.get_secret(button.secret_id, button) # fetch the secret from the keyvault
         self.display_secret(button)
 
     def handle_scroll(self, listBox):
@@ -93,9 +98,9 @@ class kvDisplay():
         #body = [urwid.Divider()]
         body = []
 
-        # intial list of objects added to listbox
+        #intial list of objects added to listbox
         for c in choices:
-            button = MyButton(c)
+            button = ListEntry(c)
             urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
             body.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
 
@@ -155,7 +160,7 @@ class kvDisplay():
         # else display secret that match the contect of the search box
         if not self.input_expr.get_edit_text():
             for c in master_list:
-                button = MyButton(c)
+                button = ListEntry(c)
                 urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
                 self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
             self.footer.set_text("Status: " + str(len(self.list_walker.contents))) 
@@ -163,11 +168,10 @@ class kvDisplay():
             for c in master_list:
                 secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
                 if self.input_expr.get_edit_text() in secret_name:
-                    button = MyButton(c)
+                    button = ListEntry(c)
                     urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
                     self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
             self.footer.set_text("Status: " + str(len(self.list_walker.contents)))
-
 
 
     def main(self, screen=None):
@@ -181,7 +185,7 @@ class kvDisplay():
 
     def unhandled_input(self, key):
         if key == 'esc':
-            raise urwid.ExitMainLoop()       
+            raise urwid.ExitMainLoop()
         elif key == 'tab':
             current_pos = self.view.focus_position
             if current_pos == 'header':
@@ -297,26 +301,27 @@ def list_secrets(keyvault_list):
 
     return secrets
 
-# Get list of subscription id's
-print('\nChecking subscriptions.........', end='', flush=True)
-subscription_client = SubscriptionClient(credentials)
-subscriptions = subscription_client.subscriptions.list()
-for item in subscriptions:
-    item = item.as_dict()
-    subscription_ids.append(item['subscription_id'])
-print(bcolors.GREEN + 'OK' + bcolors.RESET)
+# # Get list of subscription id's
+# print('\nChecking subscriptions.........', end='', flush=True)
+# subscription_client = SubscriptionClient(credentials)
+# subscriptions = subscription_client.subscriptions.list()
+# for item in subscriptions:
+#     item = item.as_dict()
+#     subscription_ids.append(item['subscription_id'])
+# print(bcolors.GREEN + 'OK' + bcolors.RESET)
 
 
-# Get keyvaults in all subscriptions
-print('Retrieving list of keyvaults...', end='', flush=True)
-for item in subscription_ids:
-    kv_mgmt_client = KeyVaultManagementClient(credentials, item)
-    kv = kv_mgmt_client.vaults.list()
-    for item in kv:
-        item = item.as_dict()
-        keyvault_list.append(item['name'])
-print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
+# # Get keyvaults in all subscriptions
+# print('Retrieving list of keyvaults...', end='', flush=True)
+# for item in subscription_ids:
+#     kv_mgmt_client = KeyVaultManagementClient(credentials, item)
+#     kv = kv_mgmt_client.vaults.list()
+#     for item in kv:
+#         item = item.as_dict()
+#         keyvault_list.append(item['name'])
+# print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
 
+keyvault_list = ['du-env-kv']
 
 # Get list of secrets from all kevaults in parallel
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
