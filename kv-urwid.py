@@ -35,7 +35,8 @@ class kvDisplay():
         ('input expr', 'black,bold', 'light gray'),
         ('bigtext', 'light blue', 'black'),
         ('highlight', 'white', 'dark gray'),
-        ('secret_pulled', 'light green', 'dark gray')
+        ('secret_pulled', 'light green', 'dark gray'),
+        ('greentext', 'light green', '')
     ]
 
     def __init__(self, output_mode='result'):
@@ -75,13 +76,14 @@ class kvDisplay():
     def display_secret(self, button):
         if button.secret_value == '':
             self.secret_details.set_text('')
+            self.secret_decoded_text.set_text('')
+            self.secret_decoded.set_text('')
         elif self.is_base64(button.secret_value): 
-            self.secret_details.set_text(
-                '{}\n\nThis secret is base64 encoded. Here\'s the decoded version: \n\n{}'.format(
-                button.secret_value, base64.b64decode(button.secret_value).decode())
-            )               
+            self.secret_details.set_text(('greentext', button.secret_value))
+            self.secret_decoded_text.set_text('This secret is base64 encoded. Here\'s the decoded version:')
+            self.secret_decoded.set_text(('greentext', base64.b64decode(button.secret_value).decode()))      
         else:
-            self.secret_details.set_text(button.secret_value)
+            self.secret_details.set_text(('greentext', button.secret_value))
 
     def handle_enter(self, button, other):
         #self.secret_details.set_text('Retrieving secret...')
@@ -136,8 +138,18 @@ class kvDisplay():
         self.left_content, self.list_walker = self.listbox_secrets(self.choices)
         self.left_content = urwid.LineBox(self.left_content, title='Secret list')
 
-        self.secret_details = urwid.Text("start_text")
-        self.secret_details_list = [div, self.secret_details]
+        self.secret_details = urwid.Text('')
+        self.secret_decoded_text = urwid.Text('')
+        self.secret_decoded = urwid.Text('')
+
+        self.secret_details_list = [
+            div,
+            self.secret_details,
+            div,
+            self.secret_decoded_text,
+            div,
+            self.secret_decoded
+        ]
 
         self.right_content = urwid.ListBox(self.secret_details_list)
         self.right_content = urwid.LineBox(self.right_content, title='Secret details')
@@ -301,25 +313,27 @@ def list_secrets(keyvault_list):
 
     return secrets
 
-# Get list of subscription id's
-print('\nChecking subscriptions.........', end='', flush=True)
-subscription_client = SubscriptionClient(credentials)
-subscriptions = subscription_client.subscriptions.list()
-for item in subscriptions:
-    item = item.as_dict()
-    subscription_ids.append(item['subscription_id'])
-print(bcolors.GREEN + 'OK' + bcolors.RESET)
+# # Get list of subscription id's
+# print('\nChecking subscriptions.........', end='', flush=True)
+# subscription_client = SubscriptionClient(credentials)
+# subscriptions = subscription_client.subscriptions.list()
+# for item in subscriptions:
+#     item = item.as_dict()
+#     subscription_ids.append(item['subscription_id'])
+# print(bcolors.GREEN + 'OK' + bcolors.RESET)
 
 
-# Get keyvaults in all subscriptions
-print('Retrieving list of keyvaults...', end='', flush=True)
-for item in subscription_ids:
-    kv_mgmt_client = KeyVaultManagementClient(credentials, item)
-    kv = kv_mgmt_client.vaults.list()
-    for item in kv:
-        item = item.as_dict()
-        keyvault_list.append(item['name'])
-print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
+# # Get keyvaults in all subscriptions
+# print('Retrieving list of keyvaults...', end='', flush=True)
+# for item in subscription_ids:
+#     kv_mgmt_client = KeyVaultManagementClient(credentials, item)
+#     kv = kv_mgmt_client.vaults.list()
+#     for item in kv:
+#         item = item.as_dict()
+#         keyvault_list.append(item['name'])
+# print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
+
+keyvault_list = ['du-env-kv']
 
 # Get list of secrets from all kevaults in parallel
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
