@@ -40,7 +40,7 @@ class kvDisplay():
     ]
 
     def __init__(self, output_mode='result'):
-        self.choices = master_list
+        self.master_list = master_list
         self.view = None
         self.output_mode = output_mode
         self.last_result = None
@@ -57,8 +57,6 @@ class kvDisplay():
         )
 
         button.set_text(('secret_pulled', basename))
-
-        #urwid.AttrMap(button, None, focus_map = 'highlight')
 
         return secret_value.value
 
@@ -92,26 +90,25 @@ class kvDisplay():
 
     def handle_scroll(self, listBox):
         # listBox.focus returns AttrMap object wrapping the button.
-        # use base_widget to access the button object
-        current_button = listBox.focus.base_widget
-        self.display_secret(current_button)
+        # use base_widget to access the button object and pass it to display_secret
+        # Don't preform any action is the focus_position is 0 as that's a divider
+        if listBox.focus_position != 0:
+            self.display_secret(listBox.focus.base_widget)
 
-    def listbox_secrets(self, choices):
-        #body = [urwid.Divider()]
-        body = []
+    def listbox_secrets(self, master_list):
+        body = [urwid.Divider()]
 
         #intial list of objects added to listbox
-        for c in choices:
+        for c in master_list:
             button = ListEntry(c)
             urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
             body.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
 
         walker = urwid.SimpleListWalker(body)
         listBox = urwid.ListBox(walker)
-        
+
         # pass the whole listbox to the handler
         urwid.connect_signal(walker, "modified", self.handle_scroll, user_args = [listBox] )
-
         return listBox, walker
 
 
@@ -135,7 +132,7 @@ class kvDisplay():
 
         ### content
 
-        self.left_content, self.list_walker = self.listbox_secrets(self.choices)
+        self.left_content, self.list_walker = self.listbox_secrets(self.master_list)
         self.left_content = urwid.LineBox(self.left_content, title='Secret list')
 
         self.secret_details = urwid.Text('')
@@ -313,27 +310,25 @@ def list_secrets(keyvault_list):
 
     return secrets
 
-# # Get list of subscription id's
-# print('\nChecking subscriptions.........', end='', flush=True)
-# subscription_client = SubscriptionClient(credentials)
-# subscriptions = subscription_client.subscriptions.list()
-# for item in subscriptions:
-#     item = item.as_dict()
-#     subscription_ids.append(item['subscription_id'])
-# print(bcolors.GREEN + 'OK' + bcolors.RESET)
+# Get list of subscription id's
+print('\nChecking subscriptions.........', end='', flush=True)
+subscription_client = SubscriptionClient(credentials)
+subscriptions = subscription_client.subscriptions.list()
+for item in subscriptions:
+    item = item.as_dict()
+    subscription_ids.append(item['subscription_id'])
+print(bcolors.GREEN + 'OK' + bcolors.RESET)
 
 
-# # Get keyvaults in all subscriptions
-# print('Retrieving list of keyvaults...', end='', flush=True)
-# for item in subscription_ids:
-#     kv_mgmt_client = KeyVaultManagementClient(credentials, item)
-#     kv = kv_mgmt_client.vaults.list()
-#     for item in kv:
-#         item = item.as_dict()
-#         keyvault_list.append(item['name'])
-# print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
-
-keyvault_list = ['du-env-kv']
+# Get keyvaults in all subscriptions
+print('Retrieving list of keyvaults...', end='', flush=True)
+for item in subscription_ids:
+    kv_mgmt_client = KeyVaultManagementClient(credentials, item)
+    kv = kv_mgmt_client.vaults.list()
+    for item in kv:
+        item = item.as_dict()
+        keyvault_list.append(item['name'])
+print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
 
 # Get list of secrets from all kevaults in parallel
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
