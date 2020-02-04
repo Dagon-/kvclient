@@ -12,7 +12,6 @@ import base64
 import json
 import argparse
 import urwid
-import jmespath
 import collections
 from custom_widgets import ListEntry
 
@@ -88,33 +87,22 @@ class kvDisplay():
         button.secret_value = self.get_secret(button.secret_id, button) # fetch the secret from the keyvault
         self.display_secret(button)
 
-    def handle_scroll(self, listBox):
+    def handle_modifcation(self, listBox):
         # listBox.focus returns AttrMap object wrapping the button.
         # use base_widget to access the button object and pass it to display_secret
-        # Don't preform any action is the focus_position is 0 as that's a divider
+        # Don't preform any action is the focus_position is
         if listBox.focus_position != 0:
             self.display_secret(listBox.focus.base_widget)
 
-    def listbox_secrets(self, master_list):
-        body = [urwid.Divider()]
-
-        #intial list of objects added to listbox
-        for c in master_list:
+    def listbox_secrets(self, list):
+        for c in list:
             button = ListEntry(c)
             urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
-            body.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
-
-        walker = urwid.SimpleListWalker(body)
-        listBox = urwid.ListBox(walker)
-
-        # pass the whole listbox to the handler
-        urwid.connect_signal(walker, "modified", self.handle_scroll, user_args = [listBox] )
-        return listBox, walker
-
+            self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
 
     def _create_view(self):
 
-        ### header
+        #### header
         self.input_expr = urwid.Edit(('input expr', 'Search secrets: '))
 
         sb = urwid.BigText('KV Client', self._get_font_instance())
@@ -130,16 +118,25 @@ class kvDisplay():
 
         urwid.connect_signal(self.input_expr, 'postchange', self._on_search)
 
-        ### content
+        #### content
 
-        self.left_content, self.list_walker = self.listbox_secrets(self.master_list)
-        self.left_content = urwid.LineBox(self.left_content, title='Secret list')
+        body = [urwid.Divider()]
+        walker = urwid.SimpleListWalker(body)
+        listbox = urwid.ListBox(walker)
+        # pass the whole listbox to the handler.
+        # A scroll counts as a modification
+        urwid.connect_signal(walker, "modified", self.handle_modifcation, user_args = [listbox] )  
+
+        self.list_walker = walker
+        self.left_content = urwid.ListBox(self.list_walker)
+        self.left_content = urwid.LineBox(self.left_content, title='Secret list')        
+        self.listbox_secrets(master_list)
 
         self.secret_details = urwid.Text('')
         self.secret_decoded_text = urwid.Text('')
         self.secret_decoded = urwid.Text('')
 
-        self.secret_details_list = [
+        self.secret_details_display = [
             div,
             self.secret_details,
             div,
@@ -148,41 +145,38 @@ class kvDisplay():
             self.secret_decoded
         ]
 
-        self.right_content = urwid.ListBox(self.secret_details_list)
+        self.right_content = urwid.ListBox(self.secret_details_display)
         self.right_content = urwid.LineBox(self.right_content, title='Secret details')
 
         self.content = urwid.Columns([('weight',1.5, self.left_content), self.right_content])
         
-        ### footer
-        self.footer = urwid.Text("Status: " + str(len(self.list_walker.contents)))
+        #### footer
+        self.footer = urwid.Text("Status: " + str(len(self.list_walker.contents)-1))#-1 for divider
 
-        ### frame config
+        #### frame config
         self.view = urwid.Frame(body=self.content, header=self.header,
                                 footer=self.footer, focus_part='header')
 
-    # Create new objects and add them to listbox on keystrokes
     def _on_search(self, widget, text):
-        # delete everything in the list bar the divider at index 0
+        filtered_master_list = []
+        # Delete everything in the list bar the divider at index 0
         del self.list_walker.contents[1:len(self.list_walker.contents)]
 
         # If the search box is blank, display all secrets
-        # else display secret that match the contect of the search box
+        # else display secrets that match the content of the search box
         if not self.input_expr.get_edit_text():
-            for c in master_list:
-                button = ListEntry(c)
-                urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
-                self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
-            self.footer.set_text("Status: " + str(len(self.list_walker.contents))) 
+            self.listbox_secrets(self.master_list)
         else:
-            for c in master_list:
-                secret_name = c['id'].rsplit('/', 1)[-1] # get the secret name from the url
-                if self.input_expr.get_edit_text() in secret_name:
-                    button = ListEntry(c)
-                    urwid.connect_signal(button, 'click', self.handle_enter, user_args = [button])
-                    self.list_walker.contents.append(urwid.AttrMap(button, None, focus_map = 'highlight'))
-            self.footer.set_text("Status: " + str(len(self.list_walker.contents)))
+            user_input = self.input_expr.get_edit_text().split()  
+            for index,item in enumerate(master_list):
+                basename = os.path.basename(item['id'])
+                if all(x in basename for x in user_input):
+                    filtered_master_list.append(master_list[index])
 
+            self.listbox_secrets(filtered_master_list)
 
+        self.footer.set_text("Status: " + str(len(self.list_walker.contents)-1))# -1 for the divider
+            
     def main(self, screen=None):
         self._create_view()
         self.loop = urwid.MainLoop(self.view, self.PALETTE,
@@ -190,7 +184,6 @@ class kvDisplay():
                                     screen=screen)
         self.loop.screen.set_terminal_properties(colors=256)
         self.loop.run()
-
 
     def unhandled_input(self, key):
         if key == 'esc':
