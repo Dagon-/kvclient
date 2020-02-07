@@ -12,7 +12,8 @@ import base64
 import json
 import argparse
 import urwid
-import collections
+import pyperclip
+from time import sleep
 from custom_widgets import ListEntry
 
 class bcolors():
@@ -35,7 +36,10 @@ class kvDisplay():
         ('bigtext', 'light blue', 'black'),
         ('highlight', 'white', 'dark gray'),
         ('secret_pulled', 'light green', 'dark gray'),
-        ('greentext', 'light green', '')
+        ('greentext', 'light green', ''),
+        ('buttons', 'light blue', 'black'),
+        ('button_click', 'white', 'black')
+
     ]
 
     def __init__(self, output_mode='result'):
@@ -75,22 +79,24 @@ class kvDisplay():
             self.secret_details.set_text('')
             self.secret_decoded_text.set_text('')
             self.secret_decoded.set_text('')
-        elif self.is_base64(button.secret_value): 
+        elif button.secret_value_decoded != '': 
             self.secret_details.set_text(('greentext', button.secret_value))
             self.secret_decoded_text.set_text('This secret is base64 encoded. Here\'s the decoded version:')
-            self.secret_decoded.set_text(('greentext', base64.b64decode(button.secret_value).decode()))      
+            self.secret_decoded.set_text(('greentext', button.secret_value_decoded))  
         else:
             self.secret_details.set_text(('greentext', button.secret_value))
 
     def handle_enter(self, button, other):
         #self.secret_details.set_text('Retrieving secret...')
         button.secret_value = self.get_secret(button.secret_id, button) # fetch the secret from the keyvault
+        if self.is_base64(button.secret_value):
+            button.secret_value_decoded = base64.b64decode(button.secret_value).decode()
         self.display_secret(button)
 
     def handle_modifcation(self, listBox):
         # listBox.focus returns AttrMap object wrapping the button.
         # use base_widget to access the button object and pass it to display_secret
-        # Don't preform any action is the focus_position is
+        # Don't preform any action if the focus_position is the divider
         if listBox.focus_position != 0:
             self.display_secret(listBox.focus.base_widget)
 
@@ -127,6 +133,7 @@ class kvDisplay():
         # A scroll counts as a modification
         urwid.connect_signal(walker, "modified", self.handle_modifcation, user_args = [listbox] )  
 
+        self.listbox = listbox 
         self.list_walker = walker
         self.left_content = urwid.ListBox(self.list_walker)
         self.left_content = urwid.LineBox(self.left_content, title='Secret list')        
@@ -151,9 +158,21 @@ class kvDisplay():
         self.content = urwid.Columns([('weight',1.5, self.left_content), self.right_content])
         
         #### footer
-        self.footer = urwid.Text("Status: " + str(len(self.list_walker.contents)-1))#-1 for divider
+        self.footer_status = urwid.Text("Status: {} secrets loaded".format(str(len(self.list_walker.contents)-1))) #-1 for divider
+
+        self.copy_button = urwid.Button('F7 - Copy to clipboard')
+        urwid.connect_signal(self.copy_button, 'click', self.copy_to_clipboard)
+        self.copy_button = urwid.AttrMap(self.copy_button, 'buttons' ) 
+
+        # self.delete_button = urwid.Button('  F8 - Delete secret')
+        # urwid.connect_signal(self.delete_button, 'click', self.copy_to_clipboard)
+        # self.delete_button = urwid.AttrMap(self.delete_button, 'buttons') 
+
+        self.footer_gridflow = urwid.GridFlow([self.copy_button], 26, 2, 0, 'left')
+        self.footer = urwid.Columns([('weight',1.5, self.footer_status), self.footer_gridflow])
 
         #### frame config
+        
         self.view = urwid.Frame(body=self.content, header=self.header,
                                 footer=self.footer, focus_part='header')
 
@@ -172,11 +191,25 @@ class kvDisplay():
                 basename = os.path.basename(item['id'])
                 if all(x in basename for x in user_input):
                     filtered_master_list.append(master_list[index])
-
             self.listbox_secrets(filtered_master_list)
+        
+        self.footer_status.set_text("Status: {} secrets returned".format(str(len(self.list_walker.contents)-1))) #-1 for divider
 
-        self.footer.set_text("Status: " + str(len(self.list_walker.contents)-1))# -1 for the divider
-            
+    def copy_to_clipboard(self, button):
+        secret_decoded_value = self.listbox.focus.base_widget.secret_value_decoded
+        selected_secret = self.listbox.focus.base_widget.secret_name
+        
+        if secret_decoded_value != '':
+            pyperclip.copy(secret_decoded_value)
+            self.footer_status.set_text("Status: {} copied to clipboard".format(selected_secret))
+
+        # Make the button flash briefly on click. There is probably a better way to do this.
+        # self.copy_button.base_widget.set_label(('button_click', 'F7 - Copy to clipboard'))
+        # sleep(2.0)
+        # self.copy_button.base_widget.set_label(('bigtext', 'F7 - Copy to clipboard'))
+
+
+
     def main(self, screen=None):
         self._create_view()
         self.loop = urwid.MainLoop(self.view, self.PALETTE,
@@ -194,8 +227,11 @@ class kvDisplay():
                 self.view.focus_position = 'body'
             else:
                 self.view.focus_position = 'header'
-
-            
+        elif key == 'f7':
+            # Do this globally so we can grab the secret regarless of what's in focus.
+            # Running keypress instead of calling copy_to_clipboard to avoid issues with passed variables
+            # 0 is the required 'size' paramater. Don't know what this does - 0 seems to work fine.
+            self.copy_button.keypress(0, 'enter')
 
 
 def main(master_list):
@@ -205,12 +241,7 @@ def main(master_list):
     display.main(screen=screen)
 
 
-
-
-
-
 #############################
-
 
 
 
@@ -322,6 +353,8 @@ for item in subscription_ids:
         item = item.as_dict()
         keyvault_list.append(item['name'])
 print(bcolors.GREEN + 'OK\n' + bcolors.RESET)
+
+#keyvault_list = ['du-env-kv']
 
 # Get list of secrets from all kevaults in parallel
 keyvault_client = KeyVaultClient(KeyVaultAuthentication(auth_callback))
